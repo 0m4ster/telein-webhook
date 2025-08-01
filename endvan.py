@@ -212,7 +212,20 @@ async def telein_webhook(request: Request):
     try:
         # Recebe dados brutos do request
         body = await request.body()
-        data = await request.json()
+        
+        print(f"=== WEBHOOK RECEBIDO ===")
+        print(f"Headers: {dict(request.headers)}")
+        print(f"Body raw: {body}")
+        
+        # Tenta fazer parse do JSON
+        try:
+            data = await request.json()
+            print(f"Data parsed: {json.dumps(data, indent=2)}")
+        except Exception as json_error:
+            print(f"Erro ao fazer parse do JSON: {json_error}")
+            # Se não conseguir fazer parse, usa o body como string
+            data = {"raw_body": body.decode('utf-8', errors='ignore')}
+            print(f"Usando body como string: {data}")
         
         # Log dos dados recebidos
         print(f"Webhook recebido do Telein: {json.dumps(data, indent=2)}")
@@ -220,25 +233,31 @@ async def telein_webhook(request: Request):
         # Processa diferentes tipos de eventos
         event_type = data.get("event_type", "unknown")
         
-        if event_type == "lead_created":
-            return await process_lead_created(data)
-        elif event_type == "campaign_updated":
-            return await process_campaign_updated(data)
-        elif event_type == "contact_form_submitted":
-            return await process_contact_form(data)
-        elif event_type == "key_pressed" and data.get("key") == "2":
+        print(f"Event type detectado: {event_type}")
+        
+        # SÓ processa se for tecla 2
+        if event_type == "key_pressed" and data.get("key") == "2":
+            print(f"✅ Processando tecla 2 - Criando lead")
             return await process_key_pressed_2(data)
-        elif event_type == "key_pressed" and data.get("key") == "3":
-            return await process_key_pressed_3(data)
-        elif event_type == "key_pressed" and data.get("key") in ["0", "1", "4", "5", "6", "7", "8", "9"]:
-            return await process_key_pressed_any(data)
         else:
-            # Processa dados genéricos
-            return await process_generic_webhook(data)
+            # Para todos os outros casos, apenas loga mas não processa
+            print(f"❌ Ignorando evento: {event_type} (key: {data.get('key', 'N/A')})")
+            return {
+                "status": "ignored",
+                "message": f"Evento ignorado: {event_type}",
+                "event_type": event_type,
+                "key": data.get("key"),
+                "timestamp": datetime.now().isoformat()
+            }
             
     except Exception as e:
         print(f"Erro no webhook: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Erro ao processar webhook: {str(e)}")
+        # Retorna erro mas não falha completamente
+        return {
+            "status": "error",
+            "message": f"Erro ao processar webhook: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
 
 # Webhook GET para Telein (compatibilidade)
 @app.get("/webhook/telein")
@@ -272,59 +291,6 @@ async def process_lead_created(data: Dict[str, Any]):
         "forward_result": forward_result
     }
 
-# Processa atualização de campanha
-async def process_campaign_updated(data: Dict[str, Any]):
-    campaign_data = data.get("campaign_data", {})
-    
-    print(f"Processando atualização de campanha: {campaign_data}")
-    
-    # Envia dados para outro endpoint
-    endpoint_url = DESTINATION_ENDPOINTS.get("campaign_updated", DESTINATION_ENDPOINTS["default"])
-    forward_result = await forward_to_endpoint(endpoint_url, data, "campaign_updated")
-    
-    return {
-        "status": "success",
-        "message": "Campanha atualizada processada",
-        "event_type": "campaign_updated",
-        "campaign_id": campaign_data.get("id"),
-        "timestamp": datetime.now().isoformat(),
-        "forward_result": forward_result
-    }
-
-# Processa formulário de contato
-async def process_contact_form(data: Dict[str, Any]):
-    form_data = data.get("form_data", {})
-    
-    print(f"Processando formulário de contato: {form_data}")
-    
-    # Envia dados para outro endpoint
-    endpoint_url = DESTINATION_ENDPOINTS.get("contact_form_submitted", DESTINATION_ENDPOINTS["default"])
-    forward_result = await forward_to_endpoint(endpoint_url, data, "contact_form_submitted")
-    
-    return {
-        "status": "success",
-        "message": "Formulário de contato processado",
-        "event_type": "contact_form_submitted",
-        "timestamp": datetime.now().isoformat(),
-        "forward_result": forward_result
-    }
-
-# Processa webhook genérico
-async def process_generic_webhook(data: Dict[str, Any]):
-    print(f"Processando webhook genérico: {data}")
-    
-    # Envia dados para outro endpoint
-    endpoint_url = DESTINATION_ENDPOINTS["default"]
-    forward_result = await forward_to_endpoint(endpoint_url, data, "generic")
-    
-    return {
-        "status": "success",
-        "message": "Webhook processado com sucesso",
-        "received_data": data,
-        "timestamp": datetime.now().isoformat(),
-        "forward_result": forward_result
-    }
-
 # Processa quando tecla "2" for pressionada
 async def process_key_pressed_2(data: Dict[str, Any]):
     print(f"Cliente pressionou tecla 2: {data}")
@@ -340,46 +306,6 @@ async def process_key_pressed_2(data: Dict[str, Any]):
         "status": "success",
         "message": "Lead criado por pressionar tecla 2",
         "event_type": "key_pressed_2",
-        "client_data": client_data,
-        "timestamp": datetime.now().isoformat(),
-        "forward_result": forward_result
-    }
-
-# Processa quando tecla "3" for pressionada
-async def process_key_pressed_3(data: Dict[str, Any]):
-    print(f"Cliente pressionou tecla 3: {data}")
-    
-    # Extrai dados do cliente que pressionou "3"
-    client_data = data.get("client_data", {})
-    
-    # Envia dados para IPLUC
-    endpoint_url = DESTINATION_ENDPOINTS["default"]
-    forward_result = await forward_to_endpoint(endpoint_url, data, "key_pressed_3")
-    
-    return {
-        "status": "success",
-        "message": "Lead criado por pressionar tecla 3",
-        "event_type": "key_pressed_3",
-        "client_data": client_data,
-        "timestamp": datetime.now().isoformat(),
-        "forward_result": forward_result
-    }
-
-# Processa quando qualquer tecla de 0 a 9 for pressionada
-async def process_key_pressed_any(data: Dict[str, Any]):
-    print(f"Cliente pressionou tecla {data.get('key')}: {data}")
-    
-    # Extrai dados do cliente que pressionou a tecla
-    client_data = data.get("client_data", {})
-    
-    # Envia dados para IPLUC
-    endpoint_url = DESTINATION_ENDPOINTS["default"]
-    forward_result = await forward_to_endpoint(endpoint_url, data, "key_pressed_any")
-    
-    return {
-        "status": "success",
-        "message": f"Lead criado por pressionar tecla {data.get('key')}",
-        "event_type": "key_pressed_any",
         "client_data": client_data,
         "timestamp": datetime.now().isoformat(),
         "forward_result": forward_result
@@ -411,6 +337,32 @@ async def test_webhook():
         "status": "success",
         "message": "Webhook testado com sucesso",
         "test_data": test_data
+    }
+
+# Endpoint para testar dados do Telein
+@app.post("/test/telein-data")
+async def test_telein_data():
+    """Testa com dados simulados do Telein"""
+    # Simula dados que o Telein pode enviar
+    test_data = {
+        "event_type": "key_pressed",
+        "key": "2",
+        "client_data": {
+            "nome": "João Silva Teste",
+            "telefone": "11999999999",
+            "cpf": "12345678901"
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Processa como se fosse um webhook real
+    result = await process_key_pressed_2(test_data)
+    
+    return {
+        "status": "success",
+        "message": "Teste de dados do Telein",
+        "test_data": test_data,
+        "process_result": result
     }
 
 # Endpoint para configurar endpoints de destino
@@ -586,6 +538,17 @@ async def debug_environment():
             "PORT": os.getenv("PORT", "NÃO CONFIGURADO"),
             "RENDER": os.getenv("RENDER", "NÃO CONFIGURADO")
         }
+    }
+
+# Endpoint de debug simples
+@app.get("/debug/test")
+async def debug_test():
+    """Endpoint simples para testar se o código foi atualizado"""
+    return {
+        "status": "success",
+        "message": "Código atualizado funcionando",
+        "timestamp": datetime.now().isoformat(),
+        "version": "2.0"
     }
 
 # Para executar com uvicorn
