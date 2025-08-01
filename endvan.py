@@ -35,14 +35,15 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
             if "api.ipluc.com" in endpoint_url:
                 # Extrai dados do lead do Telein
                 lead_data = data.get("lead_data", {})
+                client_data = data.get("client_data", {})
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
                     "id": int(str(uuid.uuid4().int)[:10]),  # ID único 
                     "status_id": 15135,  
-                    "nome": lead_data.get("nome", ""),
-                    "telefone_1": str(lead_data.get("telefone", "")),
-                    "cpf": lead_data.get("cpf", ""),
+                    "nome": lead_data.get("nome") or client_data.get("nome", ""),
+                    "telefone_1": str(lead_data.get("telefone") or client_data.get("telefone", "")),
+                    "cpf": lead_data.get("cpf") or client_data.get("cpf", ""),
                     "utm_source": "URA",
                     "codigo_convenio": "INSS"
                 }
