@@ -35,28 +35,24 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 # Extrai dados do lead do Telein
                 lead_data = data.get("lead_data", {})
                 
-                # Formata payload para IPLUC
+                # Formata payload para IPLUC conforme documentação
                 payload = {
+                    "telefone_1": lead_data.get("telefone", ""),
                     "nome": lead_data.get("nome", ""),
-                    "telefone": lead_data.get("telefone", ""),
-                    "email": lead_data.get("email", ""),
-                    "campanha": lead_data.get("campanha", ""),
-                    "fonte": "telein_webhook",
-                    "event_type": event_type,
-                    "timestamp": datetime.now().isoformat()
+                    "email_1": lead_data.get("email", ""),
+                    "obs": f"Fonte: Telein Webhook | Campanha: {lead_data.get('campanha', 'N/A')} | Evento: {event_type}"
                 }
                 
-                # Headers com autenticação
+                # Headers conforme documentação da IPLUC
                 headers = {
                     "Content-Type": "application/json",
-                    "X-API-Key": API_KEYS['ipluc']['api_key'],
-                    "Authorization": f"Bearer {API_KEYS['ipluc']['api_key']}",
-                    "api-key": API_KEYS['ipluc']['api_key']
+                    "apikey": API_KEYS['ipluc']['api_key']
                 }
                 
                 # Debug: log da chave sendo enviada (sem mostrar completa)
                 api_key = API_KEYS['ipluc']['api_key']
                 print(f"Enviando chave para IPLUC: {api_key[:10]}...{api_key[-10:] if len(api_key) > 20 else '***'}")
+                print(f"Payload enviado para IPLUC: {payload}")
             else:
                 # Formato padrão para outros endpoints
                 payload = {
