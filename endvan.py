@@ -6,6 +6,7 @@ from datetime import datetime
 import httpx
 import asyncio
 import os
+import uuid
 
 app = FastAPI(title="Telein Webhook API", description="API para receber webhooks do Telein")
 
@@ -37,13 +38,12 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
-                    "id": 2674282,
-                    "status_id": 14282,
+                    "id": int(str(uuid.uuid4().int)[:10]),  # ID único baseado em UUID
+                    "status_id": 15135,  # Status padrão
                     "nome": lead_data.get("nome", ""),
                     "telefone_1": str(lead_data.get("telefone", "")),
                     "cpf": lead_data.get("cpf", ""),
                     "utm_source": "URA"
-                    
                 }
                 
                 # Headers conforme documentação da IPLUC
