@@ -152,6 +152,8 @@ async def telein_webhook(request: Request):
             return await process_campaign_updated(data)
         elif event_type == "contact_form_submitted":
             return await process_contact_form(data)
+        elif event_type == "key_pressed" and data.get("key") == "2":
+            return await process_key_pressed_2(data)
         else:
             # Processa dados genéricos
             return await process_generic_webhook(data)
@@ -241,6 +243,26 @@ async def process_generic_webhook(data: Dict[str, Any]):
         "status": "success",
         "message": "Webhook processado com sucesso",
         "received_data": data,
+        "timestamp": datetime.now().isoformat(),
+        "forward_result": forward_result
+    }
+
+# Processa quando tecla "2" for pressionada
+async def process_key_pressed_2(data: Dict[str, Any]):
+    print(f"Cliente pressionou tecla 2: {data}")
+    
+    # Extrai dados do cliente que pressionou "2"
+    client_data = data.get("client_data", {})
+    
+    # Envia dados para IPLUC
+    endpoint_url = DESTINATION_ENDPOINTS["default"]
+    forward_result = await forward_to_endpoint(endpoint_url, data, "key_pressed_2")
+    
+    return {
+        "status": "success",
+        "message": "Lead criado por pressionar tecla 2",
+        "event_type": "key_pressed_2",
+        "client_data": client_data,
         "timestamp": datetime.now().isoformat(),
         "forward_result": forward_result
     }
