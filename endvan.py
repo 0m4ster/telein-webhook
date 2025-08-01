@@ -158,6 +158,8 @@ async def telein_webhook(request: Request):
             return await process_key_pressed_2(data)
         elif event_type == "key_pressed" and data.get("key") == "3":
             return await process_key_pressed_3(data)
+        elif event_type == "key_pressed" and data.get("key") in ["0", "1", "4", "5", "6", "7", "8", "9"]:
+            return await process_key_pressed_any(data)
         else:
             # Processa dados genéricos
             return await process_generic_webhook(data)
@@ -286,6 +288,26 @@ async def process_key_pressed_3(data: Dict[str, Any]):
         "status": "success",
         "message": "Lead criado por pressionar tecla 3",
         "event_type": "key_pressed_3",
+        "client_data": client_data,
+        "timestamp": datetime.now().isoformat(),
+        "forward_result": forward_result
+    }
+
+# Processa quando qualquer tecla de 0 a 9 for pressionada
+async def process_key_pressed_any(data: Dict[str, Any]):
+    print(f"Cliente pressionou tecla {data.get('key')}: {data}")
+    
+    # Extrai dados do cliente que pressionou a tecla
+    client_data = data.get("client_data", {})
+    
+    # Envia dados para IPLUC
+    endpoint_url = DESTINATION_ENDPOINTS["default"]
+    forward_result = await forward_to_endpoint(endpoint_url, data, "key_pressed_any")
+    
+    return {
+        "status": "success",
+        "message": f"Lead criado por pressionar tecla {data.get('key')}",
+        "event_type": "key_pressed_any",
         "client_data": client_data,
         "timestamp": datetime.now().isoformat(),
         "forward_result": forward_result
