@@ -49,8 +49,14 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 # Headers com autenticação
                 headers = {
                     "Content-Type": "application/json",
-                    "X-API-Key": API_KEYS['ipluc']['api_key']
+                    "X-API-Key": API_KEYS['ipluc']['api_key'],
+                    "Authorization": f"Bearer {API_KEYS['ipluc']['api_key']}",
+                    "api-key": API_KEYS['ipluc']['api_key']
                 }
+                
+                # Debug: log da chave sendo enviada (sem mostrar completa)
+                api_key = API_KEYS['ipluc']['api_key']
+                print(f"Enviando chave para IPLUC: {api_key[:10]}...{api_key[-10:] if len(api_key) > 20 else '***'}")
             else:
                 # Formato padrão para outros endpoints
                 payload = {
