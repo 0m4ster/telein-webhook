@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 import httpx
 import asyncio
+import os
 
 app = FastAPI(title="Telein Webhook API", description="API para receber webhooks do Telein")
 
@@ -19,8 +20,7 @@ DESTINATION_ENDPOINTS = {
 # Configurações de autenticação (você precisa configurar essas chaves)
 API_KEYS = {
     "ipluc": {
-        "api_key": "SUA_API_KEY_AQUI",
-        "token": "SEU_TOKEN_AQUI"
+        "api_key": os.getenv("IPLUC_API_KEY", "SUA_API_KEY_AQUI")
     }
 }
 
@@ -49,7 +49,6 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 # Headers com autenticação
                 headers = {
                     "Content-Type": "application/json",
-                    "Authorization": f"Bearer {API_KEYS['ipluc']['token']}",
                     "X-API-Key": API_KEYS['ipluc']['api_key']
                 }
             else:
@@ -308,8 +307,7 @@ async def get_api_keys_config():
     for service, keys in API_KEYS.items():
         config_info[service] = {
             "configured_keys": list(keys.keys()),
-            "has_api_key": "api_key" in keys and keys["api_key"] != "SUA_API_KEY_AQUI",
-            "has_token": "token" in keys and keys["token"] != "SEU_TOKEN_AQUI"
+            "has_api_key": "api_key" in keys and keys["api_key"] != "SUA_API_KEY_AQUI"
         }
     
     return {
