@@ -38,7 +38,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 # Formata payload para IPLUC conforme documentação
                 payload = {
                     "nome": lead_data.get("nome", ""),
-                    "telefone_1": lead_data.get("telefone", ""),
+                    "telefone_1": str(lead_data.get("telefone", "")),
                     "cpf": lead_data.get("cpf", ""),
                     "utm_source": "URA"
                 }
