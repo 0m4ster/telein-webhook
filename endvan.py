@@ -160,6 +160,18 @@ async def telein_webhook(request: Request):
         print(f"Erro no webhook: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Erro ao processar webhook: {str(e)}")
 
+# Webhook GET para Telein (compatibilidade)
+@app.get("/webhook/telein")
+async def telein_webhook_get():
+    """Endpoint GET para compatibilidade com Telein"""
+    return {
+        "status": "success",
+        "message": "Webhook GET funcionando",
+        "endpoint": "/webhook/telein",
+        "method": "GET",
+        "timestamp": datetime.now().isoformat()
+    }
+
 # Processa criação de lead
 async def process_lead_created(data: Dict[str, Any]):
     lead_data = data.get("lead_data", {})
