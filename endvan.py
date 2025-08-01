@@ -37,10 +37,10 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
-                    "telefone_1": lead_data.get("telefone", ""),
                     "nome": lead_data.get("nome", ""),
-                    "email_1": lead_data.get("email", ""),
-                    "obs": f"Fonte: Telein Webhook | Campanha: {lead_data.get('campanha', 'N/A')} | Evento: {event_type}"
+                    "telefone_1": lead_data.get("telefone", ""),
+                    "cpf": lead_data.get("cpf", ""),
+                    "utm_source": "URA"
                 }
                 
                 # Headers conforme documentação da IPLUC
