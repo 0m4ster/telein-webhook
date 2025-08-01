@@ -33,17 +33,72 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
             
             # Formata dados para a API da IPLUC
             if "api.ipluc.com" in endpoint_url:
-                # Extrai dados do lead do Telein
+                # Log completo dos dados recebidos
+                print(f"=== DADOS RECEBIDOS DO TELEIN ===")
+                print(f"Event type: {event_type}")
+                print(f"Data completo: {json.dumps(data, indent=2)}")
+                
+                # Extrai dados do lead do Telein - tenta diferentes estruturas
                 lead_data = data.get("lead_data", {})
                 client_data = data.get("client_data", {})
+                
+                # Se não encontrar lead_data ou client_data, usa o próprio data
+                if not lead_data and not client_data:
+                    lead_data = data
+                    client_data = data
+                
+                # Tenta extrair nome de diferentes campos possíveis
+                nome = (
+                    lead_data.get("nome") or 
+                    client_data.get("nome") or 
+                    lead_data.get("name") or 
+                    client_data.get("name") or 
+                    lead_data.get("nome_completo") or 
+                    client_data.get("nome_completo") or 
+                    ""
+                )
+                
+                # Tenta extrair telefone de diferentes campos possíveis
+                telefone = (
+                    str(lead_data.get("telefone") or "") or
+                    str(client_data.get("telefone") or "") or
+                    str(lead_data.get("phone") or "") or
+                    str(client_data.get("phone") or "") or
+                    str(lead_data.get("telefone_1") or "") or
+                    str(client_data.get("telefone_1") or "") or
+                    ""
+                )
+                
+                # Tenta extrair CPF de diferentes campos possíveis
+                cpf = (
+                    lead_data.get("cpf") or 
+                    client_data.get("cpf") or 
+                    lead_data.get("documento") or 
+                    client_data.get("documento") or 
+                    ""
+                )
+                
+                print(f"=== DADOS EXTRAÍDOS ===")
+                print(f"Nome: '{nome}'")
+                print(f"Telefone: '{telefone}'")
+                print(f"CPF: '{cpf}'")
+                
+                # Verifica se tem dados mínimos
+                if not nome and not telefone:
+                    print("ERRO: Nenhum nome ou telefone encontrado nos dados!")
+                    return {
+                        "status": "error",
+                        "forwarded_to": endpoint_url,
+                        "error": "Dados insuficientes: nome ou telefone não encontrados"
+                    }
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
                     "id": int(str(uuid.uuid4().int)[:10]),  # ID único 
                     "status_id": 15135,  
-                    "nome": lead_data.get("nome") or client_data.get("nome", ""),
-                    "telefone_1": str(lead_data.get("telefone") or client_data.get("telefone", "")),
-                    "cpf": lead_data.get("cpf") or client_data.get("cpf", ""),
+                    "nome": nome,
+                    "telefone_1": telefone,
+                    "cpf": cpf,
                     "utm_source": "URA",
                     "codigo_convenio": "INSS"
                 }
@@ -56,8 +111,20 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Debug: log da chave sendo enviada (sem mostrar completa)
                 api_key = API_KEYS['ipluc']['api_key']
-                print(f"Enviando chave para IPLUC: {api_key[:10]}...{api_key[-10:] if len(api_key) > 20 else '***'}")
-                print(f"Payload enviado para IPLUC: {payload}")
+                print(f"=== ENVIANDO PARA IPLUC ===")
+                print(f"URL: {endpoint_url}")
+                print(f"API Key: {api_key[:10]}...{api_key[-10:] if len(api_key) > 20 else '***'}")
+                print(f"Payload: {json.dumps(payload, indent=2)}")
+                
+                # Verifica se a API key está configurada
+                if api_key == "SUA_API_KEY_AQUI":
+                    print("ERRO: API Key da IPLUC não está configurada!")
+                    return {
+                        "status": "error",
+                        "forwarded_to": endpoint_url,
+                        "error": "API Key da IPLUC não configurada"
+                    }
+                
             else:
                 # Formato padrão para outros endpoints
                 payload = {
@@ -70,8 +137,13 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
             
             response = await client.post(endpoint_url, json=payload, headers=headers)
             
+            print(f"=== RESPOSTA DA IPLUC ===")
+            print(f"Status Code: {response.status_code}")
+            print(f"Response Headers: {dict(response.headers)}")
+            print(f"Response Body: {response.text}")
+            
             if response.status_code in [200, 201, 202]:
-                print(f"Dados enviados com sucesso para {endpoint_url}")
+                print(f"✅ Dados enviados com sucesso para {endpoint_url}")
                 return {
                     "status": "success",
                     "forwarded_to": endpoint_url,
@@ -79,7 +151,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                     "response_data": response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text
                 }
             else:
-                print(f"Erro ao enviar dados para {endpoint_url}: {response.status_code}")
+                print(f"❌ Erro ao enviar dados para {endpoint_url}: {response.status_code}")
                 return {
                     "status": "error",
                     "forwarded_to": endpoint_url,
@@ -88,7 +160,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 }
                 
     except Exception as e:
-        print(f"Erro ao enviar dados para {endpoint_url}: {str(e)}")
+        print(f"❌ Erro ao enviar dados para {endpoint_url}: {str(e)}")
         return {
             "status": "error",
             "forwarded_to": endpoint_url,
@@ -384,6 +456,76 @@ async def configure_api_keys(api_keys: Dict[str, Dict[str, str]]):
         "configured_services": list(api_keys.keys())
     }
 
+# Endpoint específico para configurar API key da IPLUC
+@app.post("/config/ipluc-api-key")
+async def configure_ipluc_api_key(api_key: str):
+    """Configura especificamente a API key da IPLUC"""
+    global API_KEYS
+    
+    if "ipluc" not in API_KEYS:
+        API_KEYS["ipluc"] = {}
+    
+    API_KEYS["ipluc"]["api_key"] = api_key
+    
+    return {
+        "status": "success",
+        "message": "API Key da IPLUC configurada com sucesso",
+        "api_key_length": len(api_key),
+        "api_key_preview": f"{api_key[:10]}...{api_key[-10:]}" if len(api_key) > 20 else "***"
+    }
+
+# Endpoint para testar conexão com IPLUC
+@app.post("/test/ipluc-connection")
+async def test_ipluc_connection():
+    """Testa a conexão com a API da IPLUC"""
+    try:
+        api_key = API_KEYS['ipluc']['api_key']
+        
+        if api_key == "SUA_API_KEY_AQUI":
+            return {
+                "status": "error",
+                "message": "API Key da IPLUC não está configurada",
+                "solution": "Use o endpoint /config/ipluc-api-key para configurar"
+            }
+        
+        # Testa com dados fictícios
+        test_payload = {
+            "id": 123456789,
+            "status_id": 15135,
+            "nome": "TESTE CONEXÃO",
+            "telefone_1": "11999999999",
+            "cpf": "12345678901",
+            "utm_source": "URA",
+            "codigo_convenio": "INSS"
+        }
+        
+        headers = {
+            "Content-Type": "application/json",
+            "apikey": api_key
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.ipluc.com/api/salvar-lead",
+                json=test_payload,
+                headers=headers
+            )
+            
+            return {
+                "status": "success" if response.status_code in [200, 201, 202] else "error",
+                "message": "Teste de conexão com IPLUC",
+                "response_status": response.status_code,
+                "response_body": response.text,
+                "api_key_configured": True
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erro ao testar conexão com IPLUC: {str(e)}",
+            "api_key_configured": API_KEYS['ipluc']['api_key'] != "SUA_API_KEY_AQUI"
+        }
+
 # Endpoint para visualizar chaves de API (sem mostrar os valores)
 @app.get("/config/api-keys")
 async def get_api_keys_config():
@@ -398,6 +540,52 @@ async def get_api_keys_config():
     return {
         "api_keys_config": config_info,
         "timestamp": datetime.now().isoformat()
+    }
+
+# Endpoint para verificar status da configuração
+@app.get("/status")
+async def get_status():
+    """Retorna o status atual da configuração"""
+    ipluc_api_key = API_KEYS['ipluc']['api_key']
+    
+    return {
+        "status": "online",
+        "timestamp": datetime.now().isoformat(),
+        "ipluc_config": {
+            "api_key_configured": ipluc_api_key != "SUA_API_KEY_AQUI",
+            "api_key_length": len(ipluc_api_key),
+            "api_key_preview": f"{ipluc_api_key[:10]}...{ipluc_api_key[-10:]}" if len(ipluc_api_key) > 20 and ipluc_api_key != "SUA_API_KEY_AQUI" else "***",
+            "env_variable": "IPLUC_API_KEY",
+            "env_value": os.getenv("IPLUC_API_KEY", "NÃO CONFIGURADO")
+        },
+        "endpoints": {
+            "webhook": "/webhook/telein",
+            "ipluc_config": "/config/ipluc-api-key",
+            "ipluc_test": "/test/ipluc-connection",
+            "status": "/status",
+            "debug_env": "/debug/environment"
+        },
+        "next_steps": [
+            "1. Configure a API key da IPLUC usando POST /config/ipluc-api-key",
+            "2. Teste a conexão usando POST /test/ipluc-connection",
+            "3. Configure o Telein para enviar webhooks para https://telein-webhook.onrender.com/webhook/telein"
+        ]
+    }
+
+# Endpoint para debug do ambiente
+@app.get("/debug/environment")
+async def debug_environment():
+    """Debug das variáveis de ambiente"""
+    return {
+        "ipluc_api_key_env": os.getenv("IPLUC_API_KEY", "NÃO CONFIGURADO"),
+        "ipluc_api_key_length": len(os.getenv("IPLUC_API_KEY", "")),
+        "current_api_key": API_KEYS['ipluc']['api_key'],
+        "current_api_key_length": len(API_KEYS['ipluc']['api_key']),
+        "environment_variables": {
+            "IPLUC_API_KEY": "CONFIGURADO" if os.getenv("IPLUC_API_KEY") else "NÃO CONFIGURADO",
+            "PORT": os.getenv("PORT", "NÃO CONFIGURADO"),
+            "RENDER": os.getenv("RENDER", "NÃO CONFIGURADO")
+        }
     }
 
 # Para executar com uvicorn
