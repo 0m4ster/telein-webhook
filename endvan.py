@@ -7,8 +7,34 @@ import httpx
 import asyncio
 import os
 import uuid
+import re
 
 app = FastAPI(title="Telein Webhook API", description="API para receber webhooks do Telein")
+
+# Função para formatar telefone
+def formatar_telefone(telefone: str) -> str:
+    """Formata telefone para o padrão do IPLUC"""
+    if not telefone:
+        return ""
+    
+    # Remove todos os caracteres não numéricos
+    numeros = re.sub(r'[^\d]', '', telefone)
+    
+    # Se já tem 11 dígitos (com DDD), retorna como está
+    if len(numeros) == 11:
+        return numeros
+    
+    # Se tem 10 dígitos (sem 9), adiciona 9
+    elif len(numeros) == 10:
+        return numeros
+    
+    # Se tem menos de 10 dígitos, retorna como está
+    elif len(numeros) < 10:
+        return numeros
+    
+    # Se tem mais de 11 dígitos, pega os últimos 11
+    else:
+        return numeros[-11:]
 
 # Configurações dos endpoints de destino
 DESTINATION_ENDPOINTS = {
@@ -59,7 +85,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 )
                 
                 # Tenta extrair telefone de diferentes campos possíveis
-                telefone = (
+                telefone_raw = (
                     str(lead_data.get("telefone") or "") or
                     str(client_data.get("telefone") or "") or
                     str(lead_data.get("phone") or "") or
@@ -69,7 +95,10 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                     ""
                 )
                 
-                # Tenta extrair CPF de diferentes campos possíveis
+                # Formata o telefone
+                telefone = formatar_telefone(telefone_raw)
+                
+                # Tenta extrair CPF 
                 cpf = (
                      lead_data.get("CPF") or 
                     client_data.get("CPF") or 
@@ -98,7 +127,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
-                    "id": int(str(uuid.uuid4().int)[:7]),  # ID único menor (7 dígitos)
+                    "id": int(str(uuid.uuid4().int)[:7]),  
                     "status_id": 15135,  
                     "nome": nome,
                     "telefone_1": telefone,
@@ -599,7 +628,7 @@ async def test_ipluc_connection():
             "id": 12345678,  # ID menor para teste
             "status_id": 15135,
             "nome": "TESTE CONEXÃO",
-            "telefone_1": "11999999999",
+            "telefone_1": formatar_telefone("11999999999"),
             "cpf": "12345678901",
             "utm_source": "URA",
             "cod_convenio": "INSS"
