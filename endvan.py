@@ -71,10 +71,14 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Tenta extrair CPF de diferentes campos possíveis
                 cpf = (
+                     lead_data.get("CPF") or 
+                    client_data.get("CPF") or 
                     lead_data.get("cpf") or 
                     client_data.get("cpf") or 
                     lead_data.get("documento") or 
                     client_data.get("documento") or 
+                    lead_data.get("cpf_cnpj") or 
+                    client_data.get("cpf_cnpj") or 
                     ""
                 )
                 
@@ -94,13 +98,13 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
-                    "id": int(str(uuid.uuid4().int)[:7]),  # ID único menor (8 dígitos)
+                    "id": int(str(uuid.uuid4().int)[:7]),  # ID único menor (7 dígitos)
                     "status_id": 15135,  
                     "nome": nome,
                     "telefone_1": telefone,
                     "cpf": cpf,
                     "utm_source": "URA",
-                    "codigo_convenio": "INSS"
+                    "cod_convenio": "INSS"
                 }
                 
                 # Headers conforme documentação da IPLUC
@@ -598,7 +602,7 @@ async def test_ipluc_connection():
             "telefone_1": "11999999999",
             "cpf": "12345678901",
             "utm_source": "URA",
-            "codigo_convenio": "INSS"
+            "cod_convenio": "INSS"
         }
         
         headers = {
