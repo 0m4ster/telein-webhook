@@ -282,7 +282,8 @@ async def telein_webhook(request: Request):
                         "campanha": query_params.get("campanha", ""),
                         "opcao": query_params.get("opcao", ""),
                         "email": query_params.get("email", ""),
-                        "endereco": query_params.get("endereco", "")
+                        "endereco": query_params.get("endereco", ""),
+                        "cpf": query_params.get("cpf", "")
                     },
                     "source": "telein_query_params"
                 }
@@ -381,7 +382,8 @@ async def telein_webhook_get(request: Request):
                     "campanha": query_params.get("campanha", ""),
                     "opcao": query_params.get("opcao", ""),
                     "email": query_params.get("email", ""),
-                    "endereco": query_params.get("endereco", "")
+                    "endereco": query_params.get("endereco", ""),
+                    "cpf": query_params.get("cpf", "")
                 },
                 "source": "telein_query_params"
             }
