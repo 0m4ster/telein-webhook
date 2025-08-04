@@ -94,7 +94,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
-                    "id": int(str(uuid.uuid4().int)[:8]),  # ID único menor (8 dígitos)
+                    "id": int(str(uuid.uuid4().int)[:7]),  # ID único menor (8 dígitos)
                     "status_id": 15135,  
                     "nome": nome,
                     "telefone_1": telefone,
