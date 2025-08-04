@@ -213,45 +213,83 @@ async def telein_webhook(request: Request):
         # Recebe dados brutos do request
         body = await request.body()
         
-        print(f"=== WEBHOOK RECEBIDO ===")
-        print(f"Headers: {dict(request.headers)}")
-        print(f"Body raw: {body}")
+        print("=" * 80)
+        print("🚀 WEBHOOK RECEBIDO - INÍCIO DO PROCESSAMENTO")
+        print("=" * 80)
+        print(f"📅 Timestamp: {datetime.now().isoformat()}")
+        print(f"🌐 URL: {request.url}")
+        print(f"📋 Método: {request.method}")
+        print(f"📦 Headers completos:")
+        for key, value in request.headers.items():
+            print(f"   {key}: {value}")
+        print(f"📄 Body raw (bytes): {body}")
+        print(f"📄 Body raw (string): {body.decode('utf-8', errors='ignore')}")
+        print("-" * 80)
         
         # Tenta fazer parse do JSON
         try:
             data = await request.json()
-            print(f"Data parsed: {json.dumps(data, indent=2)}")
+            print(f"✅ JSON parseado com sucesso:")
+            print(f"📊 Data parsed: {json.dumps(data, indent=2, ensure_ascii=False)}")
         except Exception as json_error:
-            print(f"Erro ao fazer parse do JSON: {json_error}")
+            print(f"❌ Erro ao fazer parse do JSON: {json_error}")
             # Se não conseguir fazer parse, usa o body como string
             data = {"raw_body": body.decode('utf-8', errors='ignore')}
-            print(f"Usando body como string: {data}")
+            print(f"⚠️ Usando body como string: {data}")
         
-        # Log dos dados recebidos
-        print(f"Webhook recebido do Telein: {json.dumps(data, indent=2)}")
+        # Log detalhado dos dados recebidos
+        print("-" * 80)
+        print("📋 ANÁLISE DOS DADOS RECEBIDOS:")
+        print(f"🔍 Event type: {data.get('event_type', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Key: {data.get('key', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Client data: {data.get('client_data', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Lead data: {data.get('lead_data', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Campaign data: {data.get('campaign_data', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Source: {data.get('source', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Timestamp: {data.get('timestamp', 'NÃO ENCONTRADO')}")
+        print("-" * 80)
         
         # Processa diferentes tipos de eventos
         event_type = data.get("event_type", "unknown")
+        key_pressed = data.get("key", "N/A")
         
-        print(f"Event type detectado: {event_type}")
+        print(f"🎯 DECISÃO DE PROCESSAMENTO:")
+        print(f"   Event type detectado: '{event_type}'")
+        print(f"   Key pressionada: '{key_pressed}'")
+        print(f"   Condição para processar: event_type == 'key_pressed' AND key == '2'")
+        print(f"   Resultado: {event_type == 'key_pressed' and key_pressed == '2'}")
         
         # SÓ processa se for tecla 2
-        if event_type == "key_pressed" and data.get("key") == "2":
-            print(f"✅ Processando tecla 2 - Criando lead")
-            return await process_key_pressed_2(data)
+        if event_type == "key_pressed" and key_pressed == "2":
+            print("✅ CONDIÇÃO ATENDIDA - Processando tecla 2 - Criando lead")
+            result = await process_key_pressed_2(data)
+            print("=" * 80)
+            print("🏁 WEBHOOK PROCESSADO COM SUCESSO")
+            print("=" * 80)
+            return result
         else:
             # Para todos os outros casos, apenas loga mas não processa
-            print(f"❌ Ignorando evento: {event_type} (key: {data.get('key', 'N/A')})")
-            return {
+            print(f"❌ CONDIÇÃO NÃO ATENDIDA - Ignorando evento")
+            print(f"   Motivo: event_type='{event_type}' ou key='{key_pressed}' não é '2'")
+            result = {
                 "status": "ignored",
                 "message": f"Evento ignorado: {event_type}",
                 "event_type": event_type,
-                "key": data.get("key"),
+                "key": key_pressed,
                 "timestamp": datetime.now().isoformat()
             }
+            print("=" * 80)
+            print("🏁 WEBHOOK IGNORADO")
+            print("=" * 80)
+            return result
             
     except Exception as e:
-        print(f"Erro no webhook: {str(e)}")
+        print("=" * 80)
+        print("💥 ERRO NO WEBHOOK")
+        print("=" * 80)
+        print(f"❌ Erro: {str(e)}")
+        print(f"📅 Timestamp: {datetime.now().isoformat()}")
+        print("=" * 80)
         # Retorna erro mas não falha completamente
         return {
             "status": "error",
@@ -293,14 +331,27 @@ async def process_lead_created(data: Dict[str, Any]):
 
 # Processa quando tecla "2" for pressionada
 async def process_key_pressed_2(data: Dict[str, Any]):
-    print(f"Cliente pressionou tecla 2: {data}")
+    print("=" * 80)
+    print("🎯 PROCESSANDO TECLA 2 - INÍCIO")
+    print("=" * 80)
+    print(f"📊 Dados completos recebidos:")
+    print(f"   {json.dumps(data, indent=2, ensure_ascii=False)}")
     
     # Extrai dados do cliente que pressionou "2"
     client_data = data.get("client_data", {})
+    print(f"📋 Client data extraído: {json.dumps(client_data, indent=2, ensure_ascii=False)}")
     
     # Envia dados para IPLUC
     endpoint_url = DESTINATION_ENDPOINTS["default"]
+    print(f"🌐 Enviando para endpoint: {endpoint_url}")
+    print(f"🔑 API Key configurada: {API_KEYS['ipluc']['api_key'][:10]}...{API_KEYS['ipluc']['api_key'][-10:] if len(API_KEYS['ipluc']['api_key']) > 20 else '***'}")
+    
     forward_result = await forward_to_endpoint(endpoint_url, data, "key_pressed_2")
+    
+    print(f"📤 Resultado do forward: {json.dumps(forward_result, indent=2, ensure_ascii=False)}")
+    print("=" * 80)
+    print("🎯 PROCESSANDO TECLA 2 - FIM")
+    print("=" * 80)
     
     return {
         "status": "success",
