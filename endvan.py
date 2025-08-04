@@ -224,6 +224,7 @@ async def telein_webhook(request: Request):
             print(f"   {key}: {value}")
         print(f"📄 Body raw (bytes): {body}")
         print(f"📄 Body raw (string): {body.decode('utf-8', errors='ignore')}")
+        print(f"🔗 Query parameters: {dict(request.query_params)}")
         print("-" * 80)
         
         # Tenta fazer parse do JSON
@@ -233,9 +234,31 @@ async def telein_webhook(request: Request):
             print(f"📊 Data parsed: {json.dumps(data, indent=2, ensure_ascii=False)}")
         except Exception as json_error:
             print(f"❌ Erro ao fazer parse do JSON: {json_error}")
-            # Se não conseguir fazer parse, usa o body como string
-            data = {"raw_body": body.decode('utf-8', errors='ignore')}
-            print(f"⚠️ Usando body como string: {data}")
+            
+            # Tenta extrair dados dos query parameters (formato do Telein)
+            query_params = dict(request.query_params)
+            if query_params:
+                print(f"📋 Query parameters encontrados: {query_params}")
+                data = {
+                    "event_type": "key_pressed",
+                    "key": "2",  # Assumindo que é tecla 2
+                    "client_data": {
+                        "nome": query_params.get("nome", ""),
+                        "telefone": query_params.get("telefone", ""),
+                        "mailing": query_params.get("mailing", ""),
+                        "campanha": query_params.get("campanha", ""),
+                        "opcao": query_params.get("opcao", ""),
+                        "email": query_params.get("email", ""),
+                        "endereco": query_params.get("endereco", "")
+                    },
+                    "source": "telein_query_params"
+                }
+                print(f"✅ Dados extraídos dos query parameters:")
+                print(f"📊 Data parsed: {json.dumps(data, indent=2, ensure_ascii=False)}")
+            else:
+                # Se não encontrar query params, usa o body como string
+                data = {"raw_body": body.decode('utf-8', errors='ignore')}
+                print(f"⚠️ Usando body como string: {data}")
         
         # Log detalhado dos dados recebidos
         print("-" * 80)
