@@ -94,7 +94,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
-                    "id": int(str(uuid.uuid4().int)[:10]),  # ID único 
+                    "id": int(str(uuid.uuid4().int)[:8]),  # ID único menor (8 dígitos)
                     "status_id": 15135,  
                     "nome": nome,
                     "telefone_1": telefone,
@@ -592,7 +592,7 @@ async def test_ipluc_connection():
         
         # Testa com dados fictícios
         test_payload = {
-            "id": 123456789,
+            "id": 12345678,  # ID menor para teste
             "status_id": 15135,
             "nome": "TESTE CONEXÃO",
             "telefone_1": "11999999999",
