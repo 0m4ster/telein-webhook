@@ -313,13 +313,13 @@ async def telein_webhook(request: Request):
         print(f"🎯 DECISÃO DE PROCESSAMENTO:")
         print(f"   Event type detectado: '{event_type}'")
         print(f"   Key pressionada: '{key_pressed}'")
-        print(f"   Condição para processar: event_type == 'key_pressed' AND key == '2'")
-        print(f"   Resultado: {event_type == 'key_pressed' and key_pressed == '2'}")
+        print(f"   Condição para processar: event_type == 'key_pressed' AND key in ['0','1','2','3','4','5','6','7','8','9']")
+        print(f"   Resultado: {event_type == 'key_pressed' and key_pressed in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']}")
         
-        # SÓ processa se for tecla 2
-        if event_type == "key_pressed" and key_pressed == "2":
-            print("✅ CONDIÇÃO ATENDIDA - Processando tecla 2 - Criando lead")
-            result = await process_key_pressed_2(data)
+        # Processa se for qualquer tecla de 0 a 9
+        if event_type == "key_pressed" and key_pressed in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+            print(f"✅ CONDIÇÃO ATENDIDA - Processando tecla {key_pressed} - Criando lead")
+            result = await process_key_pressed(data, key_pressed)
             print("=" * 80)
             print("🏁 WEBHOOK PROCESSADO COM SUCESSO")
             print("=" * 80)
@@ -327,7 +327,7 @@ async def telein_webhook(request: Request):
         else:
             # Para todos os outros casos, apenas loga mas não processa
             print(f"❌ CONDIÇÃO NÃO ATENDIDA - Ignorando evento")
-            print(f"   Motivo: event_type='{event_type}' ou key='{key_pressed}' não é '2'")
+            print(f"   Motivo: event_type='{event_type}' ou key='{key_pressed}' não é de 0-9")
             result = {
                 "status": "ignored",
                 "message": f"Evento ignorado: {event_type}",
@@ -397,13 +397,13 @@ async def telein_webhook_get(request: Request):
             print(f"🎯 DECISÃO DE PROCESSAMENTO:")
             print(f"   Event type detectado: '{event_type}'")
             print(f"   Key pressionada: '{key_pressed}'")
-            print(f"   Condição para processar: event_type == 'key_pressed' AND key == '2'")
-            print(f"   Resultado: {event_type == 'key_pressed' and key_pressed == '2'}")
+            print(f"   Condição para processar: event_type == 'key_pressed' AND key in ['0','1','2','3','4','5','6','7','8','9']")
+            print(f"   Resultado: {event_type == 'key_pressed' and key_pressed in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']}")
             
-            # SÓ processa se for tecla 2
-            if event_type == "key_pressed" and key_pressed == "2":
-                print("✅ CONDIÇÃO ATENDIDA - Processando tecla 2 - Criando lead")
-                result = await process_key_pressed_2(data)
+            # Processa se for qualquer tecla de 0 a 9
+            if event_type == "key_pressed" and key_pressed in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+                print(f"✅ CONDIÇÃO ATENDIDA - Processando tecla {key_pressed} - Criando lead")
+                result = await process_key_pressed(data, key_pressed)
                 print("=" * 80)
                 print("🏁 WEBHOOK GET PROCESSADO COM SUCESSO")
                 print("=" * 80)
@@ -411,7 +411,7 @@ async def telein_webhook_get(request: Request):
             else:
                 # Para todos os outros casos, apenas loga mas não processa
                 print(f"❌ CONDIÇÃO NÃO ATENDIDA - Ignorando evento")
-                print(f"   Motivo: event_type='{event_type}' ou key='{key_pressed}' não é '2'")
+                print(f"   Motivo: event_type='{event_type}' ou key='{key_pressed}' não é de 0-9")
                 result = {
                     "status": "ignored",
                     "message": f"Evento ignorado: {event_type}",
@@ -463,15 +463,15 @@ async def process_lead_created(data: Dict[str, Any]):
         "forward_result": forward_result
     }
 
-# Processa quando tecla "2" for pressionada
-async def process_key_pressed_2(data: Dict[str, Any]):
+# Processa quando qualquer tecla de 0 a 9 for pressionada
+async def process_key_pressed(data: Dict[str, Any], key_pressed: str):
     print("=" * 80)
-    print("🎯 PROCESSANDO TECLA 2 - INÍCIO")
+    print(f"🎯 PROCESSANDO TECLA {key_pressed} - INÍCIO")
     print("=" * 80)
     print(f"📊 Dados completos recebidos:")
     print(f"   {json.dumps(data, indent=2, ensure_ascii=False)}")
     
-    # Extrai dados do cliente que pressionou "2"
+    # Extrai dados do cliente que pressionou a tecla
     client_data = data.get("client_data", {})
     print(f"📋 Client data extraído: {json.dumps(client_data, indent=2, ensure_ascii=False)}")
     
@@ -480,17 +480,17 @@ async def process_key_pressed_2(data: Dict[str, Any]):
     print(f"🌐 Enviando para endpoint: {endpoint_url}")
     print(f"🔑 API Key configurada: {API_KEYS['ipluc']['api_key'][:10]}...{API_KEYS['ipluc']['api_key'][-10:] if len(API_KEYS['ipluc']['api_key']) > 20 else '***'}")
     
-    forward_result = await forward_to_endpoint(endpoint_url, data, "key_pressed_2")
+    forward_result = await forward_to_endpoint(endpoint_url, data, f"key_pressed_{key_pressed}")
     
     print(f"📤 Resultado do forward: {json.dumps(forward_result, indent=2, ensure_ascii=False)}")
     print("=" * 80)
-    print("🎯 PROCESSANDO TECLA 2 - FIM")
+    print(f"🎯 PROCESSANDO TECLA {key_pressed} - FIM")
     print("=" * 80)
     
     return {
         "status": "success",
-        "message": "Lead criado por pressionar tecla 2",
-        "event_type": "key_pressed_2",
+        "message": f"Lead criado por pressionar tecla {key_pressed}",
+        "event_type": f"key_pressed_{key_pressed}",
         "client_data": client_data,
         "timestamp": datetime.now().isoformat(),
         "forward_result": forward_result
@@ -541,7 +541,7 @@ async def test_telein_data():
     }
     
     # Processa como se fosse um webhook real
-    result = await process_key_pressed_2(test_data)
+    result = await process_key_pressed(test_data, "2")
     
     return {
         "status": "success",
