@@ -322,15 +322,91 @@ async def telein_webhook(request: Request):
 
 # Webhook GET para Telein (compatibilidade)
 @app.get("/webhook/telein")
-async def telein_webhook_get():
+async def telein_webhook_get(request: Request):
     """Endpoint GET para compatibilidade com Telein"""
-    return {
-        "status": "success",
-        "message": "Webhook GET funcionando",
-        "endpoint": "/webhook/telein",
-        "method": "GET",
-        "timestamp": datetime.now().isoformat()
-    }
+    try:
+        print("=" * 80)
+        print("🚀 WEBHOOK GET RECEBIDO - INÍCIO DO PROCESSAMENTO")
+        print("=" * 80)
+        print(f"📅 Timestamp: {datetime.now().isoformat()}")
+        print(f"🌐 URL: {request.url}")
+        print(f"📋 Método: {request.method}")
+        print(f"🔗 Query parameters: {dict(request.query_params)}")
+        print("-" * 80)
+        
+        # Extrai dados dos query parameters (formato do Telein)
+        query_params = dict(request.query_params)
+        if query_params:
+            print(f"📋 Query parameters encontrados: {query_params}")
+            data = {
+                "event_type": "key_pressed",
+                "key": query_params.get("opcao", "2"),  # Usa a opção real
+                "client_data": {
+                    "nome": query_params.get("nome", ""),
+                    "telefone": query_params.get("telefone", ""),
+                    "mailing": query_params.get("mailing", ""),
+                    "campanha": query_params.get("campanha", ""),
+                    "opcao": query_params.get("opcao", ""),
+                    "email": query_params.get("email", ""),
+                    "endereco": query_params.get("endereco", "")
+                },
+                "source": "telein_query_params"
+            }
+            print(f"✅ Dados extraídos dos query parameters:")
+            print(f"📊 Data parsed: {json.dumps(data, indent=2, ensure_ascii=False)}")
+            
+            # Processa diferentes tipos de eventos
+            event_type = data.get("event_type", "unknown")
+            key_pressed = data.get("key", "N/A")
+            
+            print(f"🎯 DECISÃO DE PROCESSAMENTO:")
+            print(f"   Event type detectado: '{event_type}'")
+            print(f"   Key pressionada: '{key_pressed}'")
+            print(f"   Condição para processar: event_type == 'key_pressed' AND key == '2'")
+            print(f"   Resultado: {event_type == 'key_pressed' and key_pressed == '2'}")
+            
+            # SÓ processa se for tecla 2
+            if event_type == "key_pressed" and key_pressed == "2":
+                print("✅ CONDIÇÃO ATENDIDA - Processando tecla 2 - Criando lead")
+                result = await process_key_pressed_2(data)
+                print("=" * 80)
+                print("🏁 WEBHOOK GET PROCESSADO COM SUCESSO")
+                print("=" * 80)
+                return result
+            else:
+                # Para todos os outros casos, apenas loga mas não processa
+                print(f"❌ CONDIÇÃO NÃO ATENDIDA - Ignorando evento")
+                print(f"   Motivo: event_type='{event_type}' ou key='{key_pressed}' não é '2'")
+                result = {
+                    "status": "ignored",
+                    "message": f"Evento ignorado: {event_type}",
+                    "event_type": event_type,
+                    "key": key_pressed,
+                    "timestamp": datetime.now().isoformat()
+                }
+                print("=" * 80)
+                print("🏁 WEBHOOK GET IGNORADO")
+                print("=" * 80)
+                return result
+        else:
+            return {
+                "status": "error",
+                "message": "Nenhum query parameter encontrado",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        print("=" * 80)
+        print("💥 ERRO NO WEBHOOK GET")
+        print("=" * 80)
+        print(f"❌ Erro: {str(e)}")
+        print(f"📅 Timestamp: {datetime.now().isoformat()}")
+        print("=" * 80)
+        return {
+            "status": "error",
+            "message": f"Erro ao processar webhook GET: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
 
 # Processa criação de lead
 async def process_lead_created(data: Dict[str, Any]):
