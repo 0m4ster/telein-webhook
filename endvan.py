@@ -7,6 +7,11 @@ import httpx
 import asyncio
 import os
 import uuid
+import logging
+
+# Configurar logging para debug
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Telein Webhook API", description="API para receber webhooks do Telein")
 
@@ -34,27 +39,35 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
             # Formata dados para a API da IPLUC
             if "api.ipluc.com" in endpoint_url:
                 # Log completo dos dados recebidos
-                print(f"=== DADOS RECEBIDOS DO TELEIN ===")
-                print(f"Event type: {event_type}")
-                print(f"Data completo: {json.dumps(data, indent=2)}")
+                logger.info(f"=== DADOS RECEBIDOS DO TELEIN ===")
+                logger.info(f"Event type: {event_type}")
+                logger.info(f"Data completo: {json.dumps(data, indent=2)}")
                 
                 # Extrai dados do lead do Telein - tenta diferentes estruturas
                 lead_data = data.get("lead_data", {})
                 client_data = data.get("client_data", {})
+                call_data = data.get("call_data", {})
                 
                 # Se não encontrar lead_data ou client_data, usa o próprio data
-                if not lead_data and not client_data:
+                if not lead_data and not client_data and not call_data:
                     lead_data = data
                     client_data = data
+                    call_data = data
                 
                 # Tenta extrair nome de diferentes campos possíveis
                 nome = (
                     lead_data.get("nome") or 
                     client_data.get("nome") or 
+                    call_data.get("nome") or
                     lead_data.get("name") or 
                     client_data.get("name") or 
+                    call_data.get("name") or
                     lead_data.get("nome_completo") or 
                     client_data.get("nome_completo") or 
+                    call_data.get("nome_completo") or
+                    lead_data.get("cliente_nome") or 
+                    client_data.get("cliente_nome") or 
+                    call_data.get("cliente_nome") or
                     ""
                 )
                 
@@ -62,10 +75,18 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 telefone = (
                     str(lead_data.get("telefone") or "") or
                     str(client_data.get("telefone") or "") or
+                    str(call_data.get("telefone") or "") or
                     str(lead_data.get("phone") or "") or
                     str(client_data.get("phone") or "") or
+                    str(call_data.get("phone") or "") or
                     str(lead_data.get("telefone_1") or "") or
                     str(client_data.get("telefone_1") or "") or
+                    str(call_data.get("telefone_1") or "") or
+                    str(lead_data.get("cliente_telefone") or "") or
+                    str(client_data.get("cliente_telefone") or "") or
+                    str(call_data.get("cliente_telefone") or "") or
+                    str(data.get("telefone") or "") or
+                    str(data.get("phone") or "") or
                     ""
                 )
                 
@@ -73,24 +94,36 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 cpf = (
                     lead_data.get("cpf") or 
                     client_data.get("cpf") or 
+                    call_data.get("cpf") or
                     lead_data.get("documento") or 
                     client_data.get("documento") or 
+                    call_data.get("documento") or
+                    lead_data.get("cliente_cpf") or 
+                    client_data.get("cliente_cpf") or 
+                    call_data.get("cliente_cpf") or
+                    data.get("cpf") or
+                    data.get("documento") or
                     ""
                 )
                 
-                print(f"=== DADOS EXTRAÍDOS ===")
-                print(f"Nome: '{nome}'")
-                print(f"Telefone: '{telefone}'")
-                print(f"CPF: '{cpf}'")
+                logger.info(f"=== DADOS EXTRAÍDOS ===")
+                logger.info(f"Nome: '{nome}'")
+                logger.info(f"Telefone: '{telefone}'")
+                logger.info(f"CPF: '{cpf}'")
                 
-                # Verifica se tem dados mínimos
-                if not nome and not telefone:
-                    print("ERRO: Nenhum nome ou telefone encontrado nos dados!")
+                # Verifica se tem dados mínimos - agora aceita apenas telefone
+                if not telefone:
+                    logger.error("ERRO: Nenhum telefone encontrado nos dados!")
                     return {
                         "status": "error",
                         "forwarded_to": endpoint_url,
-                        "error": "Dados insuficientes: nome ou telefone não encontrados"
+                        "error": "Dados insuficientes: telefone não encontrado"
                     }
+                
+                # Se não tem nome, usa um nome padrão
+                if not nome:
+                    nome = "Cliente Telein"
+                    logger.warning(f"Nome não encontrado, usando padrão: {nome}")
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
@@ -111,14 +144,14 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Debug: log da chave sendo enviada (sem mostrar completa)
                 api_key = API_KEYS['ipluc']['api_key']
-                print(f"=== ENVIANDO PARA IPLUC ===")
-                print(f"URL: {endpoint_url}")
-                print(f"API Key: {api_key[:10]}...{api_key[-10:] if len(api_key) > 20 else '***'}")
-                print(f"Payload: {json.dumps(payload, indent=2)}")
+                logger.info(f"=== ENVIANDO PARA IPLUC ===")
+                logger.info(f"URL: {endpoint_url}")
+                logger.info(f"API Key: {api_key[:10]}...{api_key[-10:] if len(api_key) > 20 else '***'}")
+                logger.info(f"Payload: {json.dumps(payload, indent=2)}")
                 
                 # Verifica se a API key está configurada
                 if api_key == "SUA_API_KEY_AQUI":
-                    print("ERRO: API Key da IPLUC não está configurada!")
+                    logger.error("ERRO: API Key da IPLUC não está configurada!")
                     return {
                         "status": "error",
                         "forwarded_to": endpoint_url,
@@ -137,13 +170,13 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
             
             response = await client.post(endpoint_url, json=payload, headers=headers)
             
-            print(f"=== RESPOSTA DA IPLUC ===")
-            print(f"Status Code: {response.status_code}")
-            print(f"Response Headers: {dict(response.headers)}")
-            print(f"Response Body: {response.text}")
+            logger.info(f"=== RESPOSTA DA IPLUC ===")
+            logger.info(f"Status Code: {response.status_code}")
+            logger.info(f"Response Headers: {dict(response.headers)}")
+            logger.info(f"Response Body: {response.text}")
             
             if response.status_code in [200, 201, 202]:
-                print(f"✅ Dados enviados com sucesso para {endpoint_url}")
+                logger.info(f"✅ Dados enviados com sucesso para {endpoint_url}")
                 return {
                     "status": "success",
                     "forwarded_to": endpoint_url,
@@ -151,7 +184,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                     "response_data": response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text
                 }
             else:
-                print(f"❌ Erro ao enviar dados para {endpoint_url}: {response.status_code}")
+                logger.error(f"❌ Erro ao enviar dados para {endpoint_url}: {response.status_code}")
                 return {
                     "status": "error",
                     "forwarded_to": endpoint_url,
@@ -160,7 +193,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 }
                 
     except Exception as e:
-        print(f"❌ Erro ao enviar dados para {endpoint_url}: {str(e)}")
+        logger.error(f"❌ Erro ao enviar dados para {endpoint_url}: {str(e)}")
         return {
             "status": "error",
             "forwarded_to": endpoint_url,
@@ -172,8 +205,11 @@ class TeleinWebhook(BaseModel):
     event_type: Optional[str] = None
     lead_data: Optional[Dict[str, Any]] = None
     campaign_data: Optional[Dict[str, Any]] = None
+    client_data: Optional[Dict[str, Any]] = None
+    call_data: Optional[Dict[str, Any]] = None
     timestamp: Optional[str] = None
     source: Optional[str] = None
+    key: Optional[str] = None
 
 #entradas
 class Lead(BaseModel):
@@ -213,45 +249,56 @@ async def telein_webhook(request: Request):
         # Recebe dados brutos do request
         body = await request.body()
         
-        print(f"=== WEBHOOK RECEBIDO ===")
-        print(f"Headers: {dict(request.headers)}")
-        print(f"Body raw: {body}")
+        logger.info(f"=== WEBHOOK RECEBIDO ===")
+        logger.info(f"Headers: {dict(request.headers)}")
+        logger.info(f"Body raw: {body}")
         
         # Tenta fazer parse do JSON
         try:
             data = await request.json()
-            print(f"Data parsed: {json.dumps(data, indent=2)}")
+            logger.info(f"Data parsed: {json.dumps(data, indent=2)}")
         except Exception as json_error:
-            print(f"Erro ao fazer parse do JSON: {json_error}")
+            logger.error(f"Erro ao fazer parse do JSON: {json_error}")
             # Se não conseguir fazer parse, usa o body como string
             data = {"raw_body": body.decode('utf-8', errors='ignore')}
-            print(f"Usando body como string: {data}")
+            logger.info(f"Usando body como string: {data}")
         
         # Log dos dados recebidos
-        print(f"Webhook recebido do Telein: {json.dumps(data, indent=2)}")
+        logger.info(f"Webhook recebido do Telein: {json.dumps(data, indent=2)}")
         
         # Processa diferentes tipos de eventos
         event_type = data.get("event_type", "unknown")
+        key_pressed = data.get("key")
         
-        print(f"Event type detectado: {event_type}")
+        logger.info(f"Event type detectado: {event_type}")
+        logger.info(f"Key pressed: {key_pressed}")
         
-        # SÓ processa se for tecla 2
-        if event_type == "key_pressed" and data.get("key") == "2":
-            print(f"✅ Processando tecla 2 - Criando lead")
+        # Processa diferentes tipos de eventos que podem gerar leads
+        if event_type == "key_pressed" and key_pressed == "2":
+            logger.info(f"✅ Processando tecla 2 - Criando lead")
             return await process_key_pressed_2(data)
+        elif event_type == "lead_created":
+            logger.info(f"✅ Processando lead criado")
+            return await process_lead_created(data)
+        elif event_type == "call_answered":
+            logger.info(f"✅ Processando chamada atendida")
+            return await process_call_answered(data)
+        elif event_type == "contact_form_submitted":
+            logger.info(f"✅ Processando formulário de contato")
+            return await process_contact_form(data)
         else:
             # Para todos os outros casos, apenas loga mas não processa
-            print(f"❌ Ignorando evento: {event_type} (key: {data.get('key', 'N/A')})")
+            logger.info(f"❌ Ignorando evento: {event_type} (key: {key_pressed})")
             return {
                 "status": "ignored",
                 "message": f"Evento ignorado: {event_type}",
                 "event_type": event_type,
-                "key": data.get("key"),
+                "key": key_pressed,
                 "timestamp": datetime.now().isoformat()
             }
             
     except Exception as e:
-        print(f"Erro no webhook: {str(e)}")
+        logger.error(f"Erro no webhook: {str(e)}")
         # Retorna erro mas não falha completamente
         return {
             "status": "error",
@@ -276,7 +323,7 @@ async def process_lead_created(data: Dict[str, Any]):
     lead_data = data.get("lead_data", {})
     
     # Aqui você pode salvar no banco, enviar para CRM, etc.
-    print(f"Processando lead criado: {lead_data}")
+    logger.info(f"Processando lead criado: {lead_data}")
     
     # Envia dados para outro endpoint
     endpoint_url = DESTINATION_ENDPOINTS.get("lead_created", DESTINATION_ENDPOINTS["default"])
@@ -293,7 +340,7 @@ async def process_lead_created(data: Dict[str, Any]):
 
 # Processa quando tecla "2" for pressionada
 async def process_key_pressed_2(data: Dict[str, Any]):
-    print(f"Cliente pressionou tecla 2: {data}")
+    logger.info(f"Cliente pressionou tecla 2: {data}")
     
     # Extrai dados do cliente que pressionou "2"
     client_data = data.get("client_data", {})
@@ -311,11 +358,51 @@ async def process_key_pressed_2(data: Dict[str, Any]):
         "forward_result": forward_result
     }
 
+# Processa quando chamada for atendida
+async def process_call_answered(data: Dict[str, Any]):
+    logger.info(f"Chamada atendida: {data}")
+    
+    # Extrai dados da chamada
+    call_data = data.get("call_data", {})
+    
+    # Envia dados para IPLUC
+    endpoint_url = DESTINATION_ENDPOINTS["default"]
+    forward_result = await forward_to_endpoint(endpoint_url, data, "call_answered")
+    
+    return {
+        "status": "success",
+        "message": "Lead criado por chamada atendida",
+        "event_type": "call_answered",
+        "call_data": call_data,
+        "timestamp": datetime.now().isoformat(),
+        "forward_result": forward_result
+    }
+
+# Processa formulário de contato
+async def process_contact_form(data: Dict[str, Any]):
+    logger.info(f"Formulário de contato: {data}")
+    
+    # Extrai dados do formulário
+    form_data = data.get("form_data", {})
+    
+    # Envia dados para IPLUC
+    endpoint_url = DESTINATION_ENDPOINTS["default"]
+    forward_result = await forward_to_endpoint(endpoint_url, data, "contact_form_submitted")
+    
+    return {
+        "status": "success",
+        "message": "Lead criado por formulário de contato",
+        "event_type": "contact_form_submitted",
+        "form_data": form_data,
+        "timestamp": datetime.now().isoformat(),
+        "forward_result": forward_result
+    }
+
 # Endpoint POST original (mantido para compatibilidade)
 @app.post("/receber_lead")
 async def receber_lead(lead: Lead):
     # Aqui você pode salvar em banco, processar, etc.
-    print(f"Lead recebido: {lead.dict()}")
+    logger.info(f"Lead recebido: {lead.dict()}")
     
     return {
         "mensagem": "Lead recebido com sucesso!",
@@ -548,7 +635,7 @@ async def debug_test():
         "status": "success",
         "message": "Código atualizado funcionando",
         "timestamp": datetime.now().isoformat(),
-        "version": "2.0"
+        "version": "3.0"
     }
 
 # Para executar com uvicorn
