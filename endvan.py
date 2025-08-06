@@ -7,13 +7,42 @@ import httpx
 import asyncio
 import os
 import uuid
+
 import logging
 
 # Configurar logging para debug
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+import re
+
+
 app = FastAPI(title="Telein Webhook API", description="API para receber webhooks do Telein")
+
+# Função para formatar telefone
+def formatar_telefone(telefone: str) -> str:
+    """Formata telefone para o padrão do IPLUC"""
+    if not telefone:
+        return ""
+    
+    # Remove todos os caracteres não numéricos
+    numeros = re.sub(r'[^\d]', '', telefone)
+    
+    # Se já tem 11 dígitos (com DDD), retorna como está
+    if len(numeros) == 11:
+        return numeros
+    
+    # Se tem 10 dígitos (sem 9), adiciona 9
+    elif len(numeros) == 10:
+        return numeros
+    
+    # Se tem menos de 10 dígitos, retorna como está
+    elif len(numeros) < 10:
+        return numeros
+    
+    # Se tem mais de 11 dígitos, pega os últimos 11
+    else:
+        return numeros[-11:]
 
 # Configurações dos endpoints de destino
 DESTINATION_ENDPOINTS = {
@@ -72,7 +101,7 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 )
                 
                 # Tenta extrair telefone de diferentes campos possíveis
-                telefone = (
+                telefone_raw = (
                     str(lead_data.get("telefone") or "") or
                     str(client_data.get("telefone") or "") or
                     str(call_data.get("telefone") or "") or
@@ -90,19 +119,77 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                     ""
                 )
                 
-                # Tenta extrair CPF de diferentes campos possíveis
+                # Formata o telefone
+                telefone = formatar_telefone(telefone_raw)
+                
+                # Tenta extrair CPF 
                 cpf = (
+                     lead_data.get("CPF") or 
+                    client_data.get("CPF") or 
                     lead_data.get("cpf") or 
                     client_data.get("cpf") or 
                     call_data.get("cpf") or
                     lead_data.get("documento") or 
                     client_data.get("documento") or 
+
                     call_data.get("documento") or
                     lead_data.get("cliente_cpf") or 
                     client_data.get("cliente_cpf") or 
                     call_data.get("cliente_cpf") or
                     data.get("cpf") or
                     data.get("documento") or
+
+                    lead_data.get("cpf_cnpj") or 
+                    client_data.get("cpf_cnpj") or 
+
+                    ""
+                )
+                
+                # Tenta extrair mailing de diferentes campos possíveis
+                mailing = (
+                    lead_data.get("mailing") or 
+                    client_data.get("mailing") or 
+                    call_data.get("mailing") or
+                    lead_data.get("campanha") or 
+                    client_data.get("campanha") or 
+                    call_data.get("campanha") or
+                    lead_data.get("campaign") or 
+                    client_data.get("campaign") or 
+                    call_data.get("campaign") or
+                    lead_data.get("campanha_nome") or 
+                    client_data.get("campanha_nome") or 
+                    call_data.get("campanha_nome") or
+                    lead_data.get("campaign_name") or 
+                    client_data.get("campaign_name") or 
+                    call_data.get("campaign_name") or
+                    data.get("mailing") or
+                    data.get("campanha") or
+                    data.get("campaign") or
+                    ""
+                )
+                
+                # Tenta extrair campanha de diferentes campos possíveis
+                campanha = (
+                    lead_data.get("campanha") or 
+                    client_data.get("campanha") or 
+                    call_data.get("campanha") or
+                    lead_data.get("campaign") or 
+                    client_data.get("campaign") or 
+                    call_data.get("campaign") or
+                    lead_data.get("campanha_nome") or 
+                    client_data.get("campanha_nome") or 
+                    call_data.get("campanha_nome") or
+                    lead_data.get("campaign_name") or 
+                    client_data.get("campaign_name") or 
+                    call_data.get("campaign_name") or
+                    lead_data.get("campanha_id") or 
+                    client_data.get("campanha_id") or 
+                    call_data.get("campanha_id") or
+                    lead_data.get("campaign_id") or 
+                    client_data.get("campaign_id") or 
+                    call_data.get("campaign_id") or
+                    data.get("campanha") or
+                    data.get("campaign") or
                     ""
                 )
                 
@@ -110,6 +197,8 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 logger.info(f"Nome: '{nome}'")
                 logger.info(f"Telefone: '{telefone}'")
                 logger.info(f"CPF: '{cpf}'")
+                logger.info(f"Mailing: '{mailing}'")
+                logger.info(f"Campanha: '{campanha}'")
                 
                 # Verifica se tem dados mínimos - agora aceita apenas telefone
                 if not telefone:
@@ -127,13 +216,15 @@ async def forward_to_endpoint(endpoint_url: str, data: Dict[str, Any], event_typ
                 
                 # Formata payload para IPLUC conforme documentação
                 payload = {
-                    "id": int(str(uuid.uuid4().int)[:10]),  # ID único 
+                    "id": int(str(uuid.uuid4().int)[:7]),  
                     "status_id": 15135,  
                     "nome": nome,
                     "telefone_1": telefone,
                     "cpf": cpf,
                     "utm_source": "URA",
-                    "codigo_convenio": "INSS"
+                    "cod_convenio": "INSS",
+                    "referrer": mailing if mailing else "URA",
+                    "utm_campaign": campanha if campanha else "URA"
                 }
                 
                 # Headers conforme documentação da IPLUC
@@ -249,56 +340,111 @@ async def telein_webhook(request: Request):
         # Recebe dados brutos do request
         body = await request.body()
         
-        logger.info(f"=== WEBHOOK RECEBIDO ===")
-        logger.info(f"Headers: {dict(request.headers)}")
-        logger.info(f"Body raw: {body}")
+        print("=" * 80)
+        print("🚀 WEBHOOK RECEBIDO - INÍCIO DO PROCESSAMENTO")
+        print("=" * 80)
+        print(f"📅 Timestamp: {datetime.now().isoformat()}")
+        print(f"🌐 URL: {request.url}")
+        print(f"📋 Método: {request.method}")
+        print(f"📦 Headers completos:")
+        for key, value in request.headers.items():
+            print(f"   {key}: {value}")
+        print(f"📄 Body raw (bytes): {body}")
+        print(f"📄 Body raw (string): {body.decode('utf-8', errors='ignore')}")
+        print(f"🔗 Query parameters: {dict(request.query_params)}")
+        print("-" * 80)
         
         # Tenta fazer parse do JSON
         try:
             data = await request.json()
-            logger.info(f"Data parsed: {json.dumps(data, indent=2)}")
+            print(f"✅ JSON parseado com sucesso:")
+            print(f"📊 Data parsed: {json.dumps(data, indent=2, ensure_ascii=False)}")
         except Exception as json_error:
-            logger.error(f"Erro ao fazer parse do JSON: {json_error}")
-            # Se não conseguir fazer parse, usa o body como string
-            data = {"raw_body": body.decode('utf-8', errors='ignore')}
-            logger.info(f"Usando body como string: {data}")
+            print(f"❌ Erro ao fazer parse do JSON: {json_error}")
+            
+            # Tenta extrair dados dos query parameters (formato do Telein)
+            query_params = dict(request.query_params)
+            if query_params:
+                print(f"📋 Query parameters encontrados: {query_params}")
+                data = {
+                    "event_type": "key_pressed",
+                    "key": "2",  # Assumindo que é tecla 2
+                    "client_data": {
+                        "nome": query_params.get("nome", ""),
+                        "telefone": query_params.get("telefone", ""),
+                        "mailing": query_params.get("mailing", ""),
+                        "campanha": query_params.get("campanha", ""),
+                        "opcao": query_params.get("opcao", ""),
+                        "email": query_params.get("email", ""),
+                        "endereco": query_params.get("endereco", ""),
+                        "cpf": query_params.get("cpf", "")
+                    },
+                    "source": "telein_query_params"
+                }
+                print(f"✅ Dados extraídos dos query parameters:")
+                print(f"📊 Data parsed: {json.dumps(data, indent=2, ensure_ascii=False)}")
+            else:
+                # Se não encontrar query params, usa o body como string
+                data = {"raw_body": body.decode('utf-8', errors='ignore')}
+                print(f"⚠️ Usando body como string: {data}")
         
-        # Log dos dados recebidos
-        logger.info(f"Webhook recebido do Telein: {json.dumps(data, indent=2)}")
+        # Log detalhado dos dados recebidos
+        print("-" * 80)
+        print("📋 ANÁLISE DOS DADOS RECEBIDOS:")
+        print(f"🔍 Event type: {data.get('event_type', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Key: {data.get('key', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Client data: {data.get('client_data', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Lead data: {data.get('lead_data', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Campaign data: {data.get('campaign_data', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Source: {data.get('source', 'NÃO ENCONTRADO')}")
+        print(f"🔍 Timestamp: {data.get('timestamp', 'NÃO ENCONTRADO')}")
+        print("-" * 80)
         
         # Processa diferentes tipos de eventos
         event_type = data.get("event_type", "unknown")
-        key_pressed = data.get("key")
+        key_pressed = data.get("key", "N/A")
         
-        logger.info(f"Event type detectado: {event_type}")
-        logger.info(f"Key pressed: {key_pressed}")
+        print(f"🎯 DECISÃO DE PROCESSAMENTO:")
+        print(f"   Event type detectado: '{event_type}'")
+        print(f"   Key pressionada: '{key_pressed}'")
+        print(f"   Condição para processar: event_type == 'key_pressed' AND key in ['0','1','2','3','4','5','6','7','8','9']")
+        print(f"   Resultado: {event_type == 'key_pressed' and key_pressed in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']}")
         
-        # Processa diferentes tipos de eventos que podem gerar leads
-        if event_type == "key_pressed" and key_pressed == "2":
-            logger.info(f"✅ Processando tecla 2 - Criando lead")
-            return await process_key_pressed_2(data)
-        elif event_type == "lead_created":
-            logger.info(f"✅ Processando lead criado")
-            return await process_lead_created(data)
-        elif event_type == "call_answered":
-            logger.info(f"✅ Processando chamada atendida")
-            return await process_call_answered(data)
-        elif event_type == "contact_form_submitted":
-            logger.info(f"✅ Processando formulário de contato")
-            return await process_contact_form(data)
+        # Processa se for qualquer tecla de 0 a 9
+        if event_type == "key_pressed" and key_pressed in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+            print(f"✅ CONDIÇÃO ATENDIDA - Processando tecla {key_pressed} - Criando lead")
+            result = await process_key_pressed(data, key_pressed)
+            print("=" * 80)
+            print("🏁 WEBHOOK PROCESSADO COM SUCESSO")
+            print("=" * 80)
+            return result
         else:
             # Para todos os outros casos, apenas loga mas não processa
-            logger.info(f"❌ Ignorando evento: {event_type} (key: {key_pressed})")
-            return {
+            print(f"❌ CONDIÇÃO NÃO ATENDIDA - Ignorando evento")
+            print(f"   Motivo: event_type='{event_type}' ou key='{key_pressed}' não é de 0-9")
+            result = {
                 "status": "ignored",
                 "message": f"Evento ignorado: {event_type}",
                 "event_type": event_type,
                 "key": key_pressed,
                 "timestamp": datetime.now().isoformat()
             }
+            print("=" * 80)
+            print("🏁 WEBHOOK IGNORADO")
+            print("=" * 80)
+            return result
             
     except Exception as e:
+
         logger.error(f"Erro no webhook: {str(e)}")
+
+        print("=" * 80)
+        print("💥 ERRO NO WEBHOOK")
+        print("=" * 80)
+        print(f"❌ Erro: {str(e)}")
+        print(f"📅 Timestamp: {datetime.now().isoformat()}")
+        print("=" * 80)
+
         # Retorna erro mas não falha completamente
         return {
             "status": "error",
@@ -308,15 +454,92 @@ async def telein_webhook(request: Request):
 
 # Webhook GET para Telein (compatibilidade)
 @app.get("/webhook/telein")
-async def telein_webhook_get():
+async def telein_webhook_get(request: Request):
     """Endpoint GET para compatibilidade com Telein"""
-    return {
-        "status": "success",
-        "message": "Webhook GET funcionando",
-        "endpoint": "/webhook/telein",
-        "method": "GET",
-        "timestamp": datetime.now().isoformat()
-    }
+    try:
+        print("=" * 80)
+        print("🚀 WEBHOOK GET RECEBIDO - INÍCIO DO PROCESSAMENTO")
+        print("=" * 80)
+        print(f"📅 Timestamp: {datetime.now().isoformat()}")
+        print(f"🌐 URL: {request.url}")
+        print(f"📋 Método: {request.method}")
+        print(f"🔗 Query parameters: {dict(request.query_params)}")
+        print("-" * 80)
+        
+        # Extrai dados dos query parameters (formato do Telein)
+        query_params = dict(request.query_params)
+        if query_params:
+            print(f"📋 Query parameters encontrados: {query_params}")
+            data = {
+                "event_type": "key_pressed",
+                "key": query_params.get("opcao", "2"),  # Usa a opção real
+                "client_data": {
+                    "nome": query_params.get("nome", ""),
+                    "telefone": query_params.get("telefone", ""),
+                    "mailing": query_params.get("mailing", ""),
+                    "campanha": query_params.get("campanha", ""),
+                    "opcao": query_params.get("opcao", ""),
+                    "email": query_params.get("email", ""),
+                    "endereco": query_params.get("endereco", ""),
+                    "cpf": query_params.get("cpf", "")
+                },
+                "source": "telein_query_params"
+            }
+            print(f"✅ Dados extraídos dos query parameters:")
+            print(f"📊 Data parsed: {json.dumps(data, indent=2, ensure_ascii=False)}")
+            
+            # Processa diferentes tipos de eventos
+            event_type = data.get("event_type", "unknown")
+            key_pressed = data.get("key", "N/A")
+            
+            print(f"🎯 DECISÃO DE PROCESSAMENTO:")
+            print(f"   Event type detectado: '{event_type}'")
+            print(f"   Key pressionada: '{key_pressed}'")
+            print(f"   Condição para processar: event_type == 'key_pressed' AND key in ['0','1','2','3','4','5','6','7','8','9']")
+            print(f"   Resultado: {event_type == 'key_pressed' and key_pressed in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']}")
+            
+            # Processa se for qualquer tecla de 0 a 9
+            if event_type == "key_pressed" and key_pressed in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+                print(f"✅ CONDIÇÃO ATENDIDA - Processando tecla {key_pressed} - Criando lead")
+                result = await process_key_pressed(data, key_pressed)
+                print("=" * 80)
+                print("🏁 WEBHOOK GET PROCESSADO COM SUCESSO")
+                print("=" * 80)
+                return result
+            else:
+                # Para todos os outros casos, apenas loga mas não processa
+                print(f"❌ CONDIÇÃO NÃO ATENDIDA - Ignorando evento")
+                print(f"   Motivo: event_type='{event_type}' ou key='{key_pressed}' não é de 0-9")
+                result = {
+                    "status": "ignored",
+                    "message": f"Evento ignorado: {event_type}",
+                    "event_type": event_type,
+                    "key": key_pressed,
+                    "timestamp": datetime.now().isoformat()
+                }
+                print("=" * 80)
+                print("🏁 WEBHOOK GET IGNORADO")
+                print("=" * 80)
+                return result
+        else:
+            return {
+                "status": "error",
+                "message": "Nenhum query parameter encontrado",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        print("=" * 80)
+        print("💥 ERRO NO WEBHOOK GET")
+        print("=" * 80)
+        print(f"❌ Erro: {str(e)}")
+        print(f"📅 Timestamp: {datetime.now().isoformat()}")
+        print("=" * 80)
+        return {
+            "status": "error",
+            "message": f"Erro ao processar webhook GET: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
 
 # Processa criação de lead
 async def process_lead_created(data: Dict[str, Any]):
@@ -338,12 +561,10 @@ async def process_lead_created(data: Dict[str, Any]):
         "forward_result": forward_result
     }
 
+
 # Processa quando tecla "2" for pressionada
 async def process_key_pressed_2(data: Dict[str, Any]):
     logger.info(f"Cliente pressionou tecla 2: {data}")
-    
-    # Extrai dados do cliente que pressionou "2"
-    client_data = data.get("client_data", {})
     
     # Envia dados para IPLUC
     endpoint_url = DESTINATION_ENDPOINTS["default"]
@@ -353,6 +574,39 @@ async def process_key_pressed_2(data: Dict[str, Any]):
         "status": "success",
         "message": "Lead criado por pressionar tecla 2",
         "event_type": "key_pressed_2",
+        "timestamp": datetime.now().isoformat(),
+        "forward_result": forward_result
+    }
+
+# Processa quando qualquer tecla de 0 a 9 for pressionada
+async def process_key_pressed(data: Dict[str, Any], key_pressed: str):
+    print("=" * 80)
+    print(f"🎯 PROCESSANDO TECLA {key_pressed} - INÍCIO")
+    print("=" * 80)
+    print(f"📊 Dados completos recebidos:")
+    print(f"   {json.dumps(data, indent=2, ensure_ascii=False)}")
+
+    
+    # Extrai dados do cliente que pressionou a tecla
+    client_data = data.get("client_data", {})
+    print(f"📋 Client data extraído: {json.dumps(client_data, indent=2, ensure_ascii=False)}")
+    
+    # Envia dados para IPLUC
+    endpoint_url = DESTINATION_ENDPOINTS["default"]
+    print(f"🌐 Enviando para endpoint: {endpoint_url}")
+    print(f"🔑 API Key configurada: {API_KEYS['ipluc']['api_key'][:10]}...{API_KEYS['ipluc']['api_key'][-10:] if len(API_KEYS['ipluc']['api_key']) > 20 else '***'}")
+    
+    forward_result = await forward_to_endpoint(endpoint_url, data, f"key_pressed_{key_pressed}")
+    
+    print(f"📤 Resultado do forward: {json.dumps(forward_result, indent=2, ensure_ascii=False)}")
+    print("=" * 80)
+    print(f"🎯 PROCESSANDO TECLA {key_pressed} - FIM")
+    print("=" * 80)
+    
+    return {
+        "status": "success",
+        "message": f"Lead criado por pressionar tecla {key_pressed}",
+        "event_type": f"key_pressed_{key_pressed}",
         "client_data": client_data,
         "timestamp": datetime.now().isoformat(),
         "forward_result": forward_result
@@ -443,7 +697,7 @@ async def test_telein_data():
     }
     
     # Processa como se fosse um webhook real
-    result = await process_key_pressed_2(test_data)
+    result = await process_key_pressed(test_data, "2")
     
     return {
         "status": "success",
@@ -529,13 +783,13 @@ async def test_ipluc_connection():
         
         # Testa com dados fictícios
         test_payload = {
-            "id": 123456789,
+            "id": 12345678,  # ID menor para teste
             "status_id": 15135,
             "nome": "TESTE CONEXÃO",
-            "telefone_1": "11999999999",
+            "telefone_1": formatar_telefone("11999999999"),
             "cpf": "12345678901",
             "utm_source": "URA",
-            "codigo_convenio": "INSS"
+            "cod_convenio": "INSS"
         }
         
         headers = {
